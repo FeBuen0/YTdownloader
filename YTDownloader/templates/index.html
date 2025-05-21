@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Downloader YouTube com Celery</title>
+    <style>
+        #progressBar {
+            width: 100%;
+            height: 20px;
+            background-color: #f3f3f3;
+            border: 1px solid #ccc;
+            margin-top: 15px;
+            display: none;
+        }
+        #progress {
+            width: 0%;
+            height: 100%;
+            background-color: #4caf50;
+            transition: width 0.4s ease;
+        }
+    </style>
+</head>
+<body>
+    <h2>Baixar vídeo do YouTube</h2>
+    <input type="text" id="urlInput" placeholder="Cole o link do vídeo" style="width: 400px;">
+    <button onclick="startDownload()">Baixar</button>
+
+    <div id="progressBar"><div id="progress"></div></div>
+    <div id="status"></div>
+    <div id="downloadLink" style="margin-top: 20px;"></div>
+
+    <script>
+        let intervalId = null;
+
+        function startDownload() {
+            const url = document.getElementById('urlInput').value.trim();
+            if (!url) {
+                alert('Por favor, insira uma URL');
+                return;
+            }
+
+            document.getElementById('progressBar').style.display = 'block';
+            document.getElementById('progress').style.width = '0%';
+            document.getElementById('status').innerText = 'Iniciando...';
+            document.getElementById('downloadLink').innerHTML = '';
+
+            fetch('/start_download', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
+                checkProgress(data.task_id);
+                intervalId = setInterval(() => checkProgress(data.task_id), 1000);
+            })
+            .catch(() => alert('Erro ao iniciar o download'));
+        }
+
+        function checkProgress(taskId) {
+            fetch(`/progress/${taskId}`)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('progress').style.width = data.progress + '%';
+                    document.getElementById('status').innerText = data.status || '';
+
+                    if (data.progress >= 100) {
+                        clearInterval(intervalId);
+                        document.getElementById('downloadLink').innerHTML = `<h3>✅ Vídeo pronto!</h3>
+                            <a href="${data.download_link || '/static/downloads/' + taskId + '_final.mp4'}" download>Clique aqui para baixar</a>`;
+                    }
+                    if (data.state === 'FAILURE') {
+                        clearInterval(intervalId);
+                        alert('Erro no download: ' + data.status);
+                    }
+                });
+        }
+    </script>
+</body>
+</html>
